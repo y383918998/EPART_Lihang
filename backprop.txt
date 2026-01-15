@@ -1,0 +1,64 @@
+function [hidlw, outlw, terr] = backprop(tset, tslb, inihidlw, inioutlw, lr)
+% derivative of sigmoid activation function
+% ... (注释略)
+
+  hidlw = inihidlw;
+  outlw = inioutlw;
+  terr = 0;
+  
+  % --- 【新增】动量参数 ---
+  alpha = 0.9;         % 动量系数 (0.9 是经典值),0。9最好也只有76%。改成0.5试一次
+  
+  % 初始化“上一次的更新量”为 0
+  % 注意：这里用 persistent 变量或者在函数外传入会更严谨，
+  % 但为了简化作业代码，我们在函数内初始化，
+  % 虽然这意味着每个 batch/sample 间的动量是独立的，但在在线学习中依然有效。
+  % 更准确的做法是把这两行放在函数外面传进来，但这对新手太难改了。
+  % 我们采用一种简化策略：在函数内部定义，利用 persistent 关键字
+  persistent prev_hid_delta;
+  persistent prev_out_delta;
+  
+  % 如果是第一次运行（为空），则初始化为全0矩阵
+  if isempty(prev_hid_delta) || size(prev_hid_delta) != size(hidlw)
+      prev_hid_delta = zeros(size(hidlw));
+      prev_out_delta = zeros(size(outlw));
+  end
+  % -----------------------
+
+  for i=1:rows(tset)
+    % 1. 目标向量 (-1 到 1)
+    desire = -1 * ones(1, columns(outlw));
+    desire(tslb(i)) = 1;
+
+    % 2. 前向传播
+    input = [tset(i, :) 1]; 
+    hlout = actf(input * hidlw);
+    olout = actf([hlout 1] * outlw);
+
+    % 3. 误差
+    terr += sumsq(desire - olout);
+
+    % 4. 反向传播
+    outdelta = (desire - olout) .* actdf(olout);
+    hiddelta = (outlw(1:end-1,:) * outdelta')' .* actdf(hlout);
+
+    % 5. --- 【修改】权重更新 (加入动量) ---
+    
+    % 计算本次梯度的部分
+    current_out_change = lr * [hlout 1]' * outdelta;
+    current_hid_change = lr * input' * hiddelta;
+    
+    % 真正的更新 = 本次梯度 + alpha * 上次更新
+    total_out_change = current_out_change + alpha * prev_out_delta;
+    total_hid_change = current_hid_change + alpha * prev_hid_delta;
+    
+    % 更新权重
+    outlw += total_out_change;
+    hidlw += total_hid_change;
+    
+    % 记住本次更新量
+    prev_out_delta = total_out_change;
+    prev_hid_delta = total_hid_change;
+    
+  end
+end
